@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: EigenCheckHsH  # Ersetze das mit dem Namen deiner App
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    healthCheckPath: /  # Optional, je nach Bedarf
+    staticPublishPath: frontend
+    systemPackages:
+      - gcc
+      - make
