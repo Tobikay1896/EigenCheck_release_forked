@@ -1,7 +1,9 @@
-//  Backend URL (Change if needed)
-const BACKEND_URL = "http://127.0.0.1:5000";
+// ✅ Detect whether app is running on Render or locally
+const BACKEND_URL = window.location.hostname.includes("render.com") 
+    ? window.location.origin 
+    : "http://127.0.0.1:5000"; // Fallback for local testing
 
-//  Login Function
+// ✅ Login Function
 function login() {
     let username = document.getElementById("username").value;
     let password = document.getElementById("password").value;
@@ -24,18 +26,13 @@ function login() {
     .catch(error => console.error("❌ Fehler beim Login:", error));
 }
 
-//  Show Upload Section after Login
+// ✅ Show Upload Section after Login
 function showUploadSection() {
     document.getElementById("uploadSection").classList.remove("hidden");
 }
 
-//  Upload File Function
+// ✅ Upload File Function
 function uploadFile() {
-    if (sessionStorage.getItem("loggedIn") !== "true") {
-        alert("Bitte zuerst einloggen!");
-        return;
-    }
-
     let fileInput = document.getElementById("fileInput").files[0];
     if (!fileInput) {
         alert("Bitte eine Datei auswählen!");
@@ -60,13 +57,8 @@ function uploadFile() {
     .catch(error => console.error("❌ Fehler beim Hochladen:", error));
 }
 
-//  Run C Program Function
+// ✅ Run C Program Function
 function runCProgram() {
-    if (sessionStorage.getItem("loggedIn") !== "true") {
-        alert("Bitte zuerst einloggen!");
-        return;
-    }
-
     let fileInput = document.getElementById("fileInput").files[0];
     if (!fileInput) {
         alert("Bitte eine Datei auswählen!");
@@ -83,11 +75,9 @@ function runCProgram() {
     })
     .then(response => response.json())
     .then(data => {
-        if (data.error) {
-            document.getElementById("runStatus").innerText = `❌ Fehler: ${data.error}`;
-        } else {
-            document.getElementById("runStatus").innerText = `✅ Ausgabe: ${data.output}`;
-        }
+        document.getElementById("runStatus").innerText = data.error 
+            ? `❌ Fehler: ${data.error}`
+            : `✅ Ausgabe: ${data.output}`;
     })
     .catch(error => console.error("❌ Fehler beim Ausführen:", error));
 }
