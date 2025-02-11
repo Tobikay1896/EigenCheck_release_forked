@@ -4,32 +4,67 @@ import subprocess
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
 
-# Initialize Flask app
-app = Flask(__name__, template_folder="templates", static_folder="static")
-CORS(app, supports_credentials=True)  # Allow frontend requests
+app = Flask(__name__, template_folder="../frontend", static_folder="../static")
+CORS(app, supports_credentials=True, origins="*")
 
-# Configuration
 UPLOAD_FOLDER = "uploads"
+USER_DB = "users.json"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
-# Ensure necessary directories exist
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
+def load_users():
+    users = {}
+    USER_DB_PATH = os.path.join(os.path.dirname(__file__), USER_DB) #Add user_db relative path.
+    if not os.path.exists(USER_DB_PATH):
+        print("users.json not found, creating it now...")
+        users = {"users": {"admin": "password123"}}  # Default user
+        with open(USER_DB, "w") as f:
+            json.dump(users, f, indent=4)
+        print("Test users created:", users)
+        return users["users"]
 
-# ========================== SERVE FRONTEND ==========================
+    try:
+        with open(USER_DB, "r") as f:
+            users = json.load(f)
+            return users["users"]
+    except (json.JSONDecodeError, KeyError):
+        print("users.json was corrupted. Resetting it...")
+        users = {"users": {"admin": "password123"}}  # Reset if corrupt
+        with open(USER_DB, "w") as f:
+            json.dump(users, f, indent=4)
+        return users["users"]
+
+users = load_users()
+print("users.json successfully loaded! Current Users:", users)
+
 
 @app.route("/")
 def index():
-    """Serve the main frontend page."""
     return render_template("index.html")
 
+@app.route("/login", methods=["POST"])
+def login():
+    data = request.json
+    users = load_users()
 
-# ========================== FILE UPLOAD & RETRIEVAL ==========================
+    if not data or "username" not in data or "password" not in data:
+        return jsonify({"message": "Fehlende Anmeldedaten", "status": "error"}), 400
+
+    if data["username"] in users and users[data["username"]] == data["password"]:
+        session["logged_in"] = True
+        session["username"] = data["username"]
+        session.permanent = True
+        return jsonify({"message": "Login erfolgreich", "status": "success", "username": data["username"]})
+    else:
+        return jsonify({"message": "Falscher Benutzername oder Passwort", "status": "error"}), 401
 
 @app.route("/upload", methods=["POST"])
 def upload_file():
-    """Handle file uploads."""
+    if "logged_in" not in session or not session["logged_in"]:
+        return jsonify({"error": "Nicht eingeloggt"}), 401
+
     if "file" not in request.files:
         return jsonify({"error": "Keine Datei hochgeladen"}), 400
 
@@ -41,21 +76,13 @@ def upload_file():
     filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
     file.save(filepath)
 
-    print(f"✅ Datei gespeichert: {filepath}")
     return jsonify({"message": f"Datei {filename} erfolgreich hochgeladen"}), 200
-
-
-@app.route("/files/<filename>", methods=["GET"])
-def get_file(filename):
-    """Allow users to download files."""
-    return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
-
-
-# ========================== COMPILATION & EXECUTION ==========================
 
 @app.route("/run", methods=["POST"])
 def run_c_program():
-    """Compile and execute an uploaded C program."""
+    if "logged_in" not in session or not session["logged_in"]:
+        return jsonify({"error": "Nicht eingeloggt"}), 401
+
     if "file" not in request.files:
         return jsonify({"error": "Keine Datei hochgeladen"}), 400
 
@@ -68,7 +95,6 @@ def run_c_program():
         return jsonify({"error": "Nur C-Dateien erlaubt!"}), 400
 
     filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-    file.save(filepath)
 
     executable = filepath.replace(".c", "")
     compile_cmd = ["gcc", filepath, "-o", executable]
@@ -87,8 +113,10 @@ def run_c_program():
     except Exception as e:
         return jsonify({"error": str(e)})
 
-
-# ========================== SERVER START ==========================
+# Route, die die JavaScript Datei bereitstellt
+@app.route("/static/<path:filename>")
+def serve_static(filename):
+    return send_from_directory("../static", filename)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)  # Allow public access
+    app.run(host="0.0.0.0", port=5000, debug=True)
